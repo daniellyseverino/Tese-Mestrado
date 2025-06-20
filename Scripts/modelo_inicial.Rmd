@@ -1,0 +1,201 @@
+---
+title: "Modelo Inicial"
+author: "Danielly Santos Severino"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(highcharter)
+library(rstan)
+library(coda)
+```
+
+
+```{r}
+paleta_cores = list(
+  cinza = "#4F4F4F", azul = "#457B9D",bege = "#E9C46A", 
+  verde = "#6B8F71", vermelho = "#DE6B5A", roxo = "#B6A2D6"
+)
+data_dengue_br = readRDS('../Dados/data_dengue_br.rds')
+data_dengue_uf = readRDS('../Dados/data_dengue.rds')
+```
+
+```{r}
+genLog = function(t, a, b, c, f, logScale = TRUE){
+  logV = log(f)+log(a)+log(c)-(c*t)-(f+1)*log( b+exp(-c*t) )
+  if (logScale){
+    return(logV);
+  } else {
+    return(exp(logV));
+  }
+}
+```
+
+
+# Etapa 1
+
+Modelo para uma única região $s$ com $\beta_d = \gamma_d$ livre (no TCC: $\beta_d = \gamma * d$)
+
+```{r}
+df_sp = data_dengue_uf %>% filter(UF == "São Paulo")
+```
+
+```{r}
+T = 61
+D = 5
+n = df_sp %>% 
+  select(n, t, d) %>% 
+  filter(d <= D) %>% 
+  pivot_wider(names_from = d, values_from = n) %>% 
+  select(-t) %>% 
+  as.matrix()
+n[is.na(n)] <- 0
+N = rowSums(n)
+```
+
+```{r}
+df_sp_stan = list(
+  T = T, 
+  D = D+2, #0,1,2,3,4,5
+  n = n[,0:D+1], 
+  N = N
+)
+```
+
+## n ~ Poisson
+
+Compilando o arquivo stan
+
+```{r}
+model_stan =  rstan::stan_model("../Stan/initialmodel.stan")
+```
+
+Ajustando o modelo
+
+```{r}
+warmup = 1000
+chains = 1
+thin = 1
+sample_size = 5000
+number_interations = warmup + thin*sample_size
+
+params = c("lambda",
+           "alpha", "a_alpha", "b_alpha", "c_alpha", "f_alpha",
+           "beta", 
+           "theta", "a_theta", "b_theta", "c_theta", "f_theta")
+```
+
+```{r}
+output_modelo = rstan::sampling(model_stan,
+                                data = df_sp_stan,
+                                iter = number_interations,
+                                warmup = warmup,
+                                chains = chains,
+                                pars = params,
+                                #init = valores_iniciais,
+                                verbose = FALSE)
+```
+
+```{r}
+estimativas = rstan::extract(output_modelo)
+```
+
+Avaliando convergencia
+
+```{r}
+par(mfrow = c(1, 1))
+ts.plot(estimativas$beta[,1], col = "gray", xlab = "Iteração", main = "beta_1")
+ts.plot(estimativas$beta[,2], col = "gray", xlab = "Iteração", main = "beta_2")
+ts.plot(estimativas$beta[,3], col = "gray", xlab = "Iteração", main = "beta_3")
+ts.plot(estimativas$beta[,4], col = "gray", xlab = "Iteração", main = "beta_4")
+ts.plot(estimativas$beta[,5], col = "gray", xlab = "Iteração", main = "beta_5")
+```
+
+Estimativas pontuais e intervalares
+
+```{r}
+media = apply(estimativas$beta, 2, mean)
+ic_beta = HPDinterval(mcmc(estimativas$beta), prob = 0.95)
+ic_beta
+```
+
+```{r}
+data_plot = data.frame(
+  media = media,
+  lower = ic_beta[,1],
+  upper = ic_beta[,2],
+  d = 0:5
+)
+
+data_plot %>% 
+  hchart('scatter', hcaes(x = d, y = media)) #%>% 
+  # hc_add_series(
+  #   data = data_plot, type = "errorbar",
+  #   hcaes(x = d, low = lower, high = upper),
+  #   name = "Intervalo de credibilidade"
+  # )
+
+```
+
+
+## n ~ Binomial Negativa
+
+Compilando o arquivo stan
+
+```{r}
+model_stan_bn =  rstan::stan_model("../Stan/initialmodel_binom.stan")
+```
+
+Ajustando o modelo
+
+```{r}
+warmup = 1000
+chains = 1
+thin = 1
+sample_size = 5000
+number_interations = warmup + thin*sample_size
+
+params = c("lambda",
+           "alpha", "a_alpha", "b_alpha", "c_alpha", "f_alpha",
+           "beta", 
+           "theta", "a_theta", "b_theta", "c_theta", "f_theta",
+           "phi_n","phi_N")
+```
+
+```{r}
+output_modelo_bn = rstan::sampling(model_stan_bn,
+                                data = df_sp_stan,
+                                iter = number_interations,
+                                warmup = warmup,
+                                chains = chains,
+                                pars = params,
+                                #init = valores_iniciais,
+                                verbose = FALSE)
+```
+
+```{r}
+estimativas_bn = rstan::extract(output_modelo_bn)
+```
+
+Avaliando convergencia
+
+```{r}
+par(mfrow = c(1, 1))
+ts.plot(estimativas_bn$beta[,1], col = "gray", xlab = "Iteração", main = "beta_1")
+ts.plot(estimativas_bn$beta[,2], col = "gray", xlab = "Iteração", main = "beta_2")
+ts.plot(estimativas_bn$beta[,3], col = "gray", xlab = "Iteração", main = "beta_3")
+ts.plot(estimativas_bn$beta[,4], col = "gray", xlab = "Iteração", main = "beta_4")
+ts.plot(estimativas_bn$beta[,5], col = "gray", xlab = "Iteração", main = "beta_5")
+```
+
+Estimativas pontuais e intervalares
+
+```{r}
+apply(estimativas_bn$beta, 2, mean)
+ic_beta_bn = HPDinterval(mcmc(estimativas_bn$beta), prob = 0.95)
+ic_beta_bn
+```
+
+

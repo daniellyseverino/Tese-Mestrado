@@ -1,0 +1,145 @@
+---
+title: "Analise Descritiva"
+author: "Danielly Santos Severino"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(highcharter)
+```
+
+
+```{r}
+paleta_cores = list(
+  cinza = "#4F4F4F", azul = "#457B9D",bege = "#E9C46A", 
+  verde = "#6B8F71", vermelho = "#DE6B5A", roxo = "#B6A2D6"
+)
+data_dengue_br = readRDS('../Dados/data_dengue_br.rds')
+data_dengue_uf = readRDS('../Dados/data_dengue.rds')
+```
+
+Historico 
+
+```{r}
+data_dengue_br %>% 
+  hchart(type = "line", 
+         hcaes(x = t, y = N)) %>% 
+  hc_yAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>%
+  hc_xAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>% 
+  hc_title(
+    text = paste0(
+      "<b style='display: block; font-size: 12px;'>",
+      "Histórico de casos de Dengue no Brasil", 
+      "</b>"
+    ),
+    margin = 20,
+    align = "center",
+    style = list(useHTML = TRUE)
+  ) %>% 
+  hc_colors(paleta_cores$cinza)
+```
+
+Historico por atraso 
+
+```{r}
+data_dengue_br %>% 
+  #filter(d <= 5) %>% 
+  hchart(type = "line", marker = F,
+         hcaes(x = t, y = n, group = d)) %>% 
+  hc_yAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>%
+  hc_xAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>% 
+  hc_title(
+    text = paste0(
+      "<b style='display: block; font-size: 12px;'>",
+      "Histórico de casos de Dengue por atraso na notificação no Brasil", 
+      "</b>"
+    ),
+    margin = 20,
+    align = "center",
+    style = list(useHTML = TRUE)
+  ) %>% 
+  hc_colors(c(paleta_cores$cinza, paleta_cores$azul, paleta_cores$bege,
+              paleta_cores$verde, paleta_cores$vermelho, paleta_cores$roxo))
+
+```
+
+Influencia do atraso
+
+```{r}
+data_dengue_uf %>%
+  filter(UF == "Minas Gerais") %>% 
+  mutate(
+    log_n = log(n+1)
+  ) %>% 
+  filter(d <= 5) %>% 
+  hchart(type = "line", marker = F,
+         hcaes(x = t, y = log_n, group = d)) %>% 
+  hc_yAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>%
+  hc_xAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>% 
+  hc_title(
+    text = paste0(
+      "<b style='display: block; font-size: 12px;'>",
+      "Influência do atraso na notificação", 
+      "</b>"
+    ),
+    margin = 20,
+    align = "center",
+    style = list(useHTML = TRUE)
+  ) %>% 
+  hc_colors(c(paleta_cores$cinza, paleta_cores$azul, paleta_cores$bege,
+              paleta_cores$verde, paleta_cores$vermelho, paleta_cores$roxo))
+
+```
+
+
+Medidas resumo por atraso
+
+```{r}
+data_dengue_br %>% 
+  group_by(d) %>% 
+  summarise(
+    min = min(n),
+    media = round(mean(n),3),
+    mediana = median(n),
+    max = max(n),
+    sd = round(sd(n),3)
+  )
+```
+
+Medidas resumo por uf
+
+```{r}
+data_dengue_uf %>% 
+  group_by(UF) %>% 
+  summarise(
+    min = min(n),
+    media = round(mean(n),3),
+    mediana = median(n),
+    max = max(n),
+    sd = round(sd(n),3)
+  )
+```
+
+Historico por UF
+
+```{r}
+data_dengue_uf %>% 
+  distinct(UF, t, N) %>% 
+  hchart(type = "line", 
+         hcaes(x = t, y = N, group = UF)) %>% 
+  hc_yAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>%
+  hc_xAxis(lineColor = "#f7f7f7", gridLineColor = "#f4f4f4") %>% 
+  hc_title(
+    text = paste0(
+      "<b style='display: block; font-size: 12px;'>",
+      "Histórico de casos de Dengue por UF", 
+      "</b>"
+    ),
+    margin = 20,
+    align = "center",
+    style = list(useHTML = TRUE)
+  ) 
+```
+
